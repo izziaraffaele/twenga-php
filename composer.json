@@ -4,29 +4,31 @@
     "type": "library",
     "keywords": ["twenga","twenga-php","client","guzzle","php"],
     "homepage": "https://github.com/izziaraffaele/twenga-php",
-    "require": {
-        "guzzlehttp/guzzle": "^6.2"
-    },
-    "require-dev": {
-        "mockery/mockery": "^0.9.5",
-        "phpunit/phpunit": "^5.6"
-    },
-    "autoload": {
-        "files": ["src/functions.php"],
-        "psr-4": {
-            "Twenga\\": "src/"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Twenga\\Tests\\": "tests/"
-        }
-    },
     "license": "MIT",
     "authors": [
         {
             "name": "Izzia Raffaele",
             "email": "info@izziaraffaele.com"
         }
-    ]
+    ],
+    "require": {
+        "php": ">=5.5",
+        "guzzlehttp/guzzle": "^6.2"
+    },
+    "require-dev": {
+        "mockery/mockery": "^0.9.5",
+        "phpunit/phpunit": "^5.6",
+        "namshi/cuzzle": "^2.0"
+    },
+    "autoload": {
+        "files": ["src/functions.php"],
+        "psr-4": {
+            "Twenga\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Twenga\\Tests\\": "tests/"
+        }
+    }
 }

@@ -1,9 +1,6 @@
 <?php
 namespace Twenga;
 
-use GuzzleHttp\ClientInterface;
-use Psr\Http\Message\RequestInterface;
-
 /**
  * Client interface for Twenga Report API.
  *
@@ -12,11 +9,13 @@ use Psr\Http\Message\RequestInterface;
 class Client
 {
     const AUTH_ENDPOINT = '/authenticate';
+    const DEFAULT_HOST      = 'https://api.affinitad.com';
+    const DEFAULT_VERSION   = 2;
 
     /**
-     * @var ClientInterface
+     * @var string
      */
-    private $_httpClient;
+    private $host;
 
      /**
      * Twenga auth username
@@ -46,33 +45,12 @@ class Client
      */
     public function __construct(array $auth = null, $host = null, $version = null)
     {
-        // lazily instantiante
-        if ($host || $version) 
-        {
-            $client = default_http_client($host, $version);
-            $this->setHttpClient($client);
-        }
+        $this->host = $host ?: self::DEFAULT_HOST;
 
         if($auth)
         {
             $this->setCredentials($auth['username'], $auth['password']);
         }
-    }
-
-    public function getHttpClient()
-    {
-        if (!$this->_httpClient) 
-        {
-            $this->_httpClient = default_http_client();
-        }
-
-        return $this->_httpClient;
-    }
-
-    public function setHttpClient(ClientInterface $httpClient)
-    {
-        $this->_httpClient = $httpClient;
-        return $this;
     }
 
     public function setCredentials($username, $password)
@@ -84,9 +62,12 @@ class Client
     
     public function getAuthToken()
     {
-        if(!$this->token && $this->username && $this->password)
+        if(!$this->token)
         {
-            $this->token = $this->authorize();
+            if($this->username && $this->password)
+            {
+                $this->token = $this->authorize();
+            }
         }
         
         return $this->token;
@@ -98,32 +79,70 @@ class Client
         
         if(!$token)
         {
-            throw new TwengaException('Invalid Api credentials');
+            throw new Exceptions\TwengaException('Invalid Api credentials');
         }
 
-        $client = $this->getHttpClient();
-
-        $query['token'] = $token;
-        $httpResponse = $client->request($method, $path, ['query' => $query]);
-
-        return new Response( $httpResponse );
+        return $this->request($method, [
+            CURLOPT_URL => $this->getPath($path, $query).'&token='.$token,
+            CURLOPT_HTTPHEADER => [
+                'cache-control: no-cache',
+                'content-type: application/json'
+            ]
+        ]);
     }
 
     protected function authorize()
     {
         if($this->username && $this->password)
-        {
-            $response = $this->getHttpClient()->request('GET', self::AUTH_ENDPOINT, [
-                'auth' => [$this->username, $this->password]
+        { 
+            $response = $this->request('GET', [
+                CURLOPT_URL => $this->getPath(self::AUTH_ENDPOINT),
+                CURLOPT_HTTPHEADER => [
+                    'authorization: Basic '.base64_encode($this->username.':'.$this->password),
+                    'cache-control: no-cache',
+                    'content-type: application/json'
+                ],
             ]);
 
-            if($response->getStatusCode() === 200)
+            if($response->success())
             {
-                $body = $response->getBody();
-                return $body['result']['token'];
+                return $response->result('token');
             }
         }
         
         return false;
+    }
+
+    protected function getPath($path, array $query = null)
+    {
+        $query = ($query) ? http_build_query($query) : '';
+        return $this->host.$path.'?'.$query;
+    }
+
+    protected function request($method, array $options, $execution = 1)
+    {
+        $curl = curl_init();
+
+        $defaultOptions = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => "",
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => $method
+        ];
+
+        curl_setopt_array($curl, $defaultOptions + $options);
+
+        $response = curl_exec($curl);
+        $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+
+        if(in_array($code,[502, 504]) && $execution <= 3)
+        {
+            $execution += 1;
+            return $this->request($method, $options, $execution);
+        }
+
+        return new Response($code, $response);
     }
 }

@@ -2,11 +2,6 @@
 
 namespace Twenga;
 
-use GuzzleHttp\Client as GuzzleClient;
-
-const DEFAULT_HOST      = 'https://api.affinitad.com';
-const DEFAULT_VERSION   = 2;
-
 /**
  * Creates a pre-configured Guzzle Client with the default settings.
  *
@@ -17,8 +12,11 @@ const DEFAULT_VERSION   = 2;
  */
 function default_http_client($host = null, $version = null)
 {
+    $curl = curl_init();
     $config = default_http_config($host, $version);
-    return new GuzzleClient($config);
+
+    curl_setopt_array($curl, $config);
+    return $curl;
 }
 
 /**
@@ -31,13 +29,11 @@ function default_http_client($host = null, $version = null)
  */
 function default_http_config($host = null, $version = null)
 {
-    $base_uri = ($host ? trim($host, '/') : DEFAULT_HOST) . '/';
-
     return [
-        'base_uri' => $base_uri,
-        'headers' => [
-            'Content-Type'  => 'application/json'
-        ],
-        'http_errors' => false,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => "",
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
     ];
 }

@@ -7,24 +7,29 @@ use Psr\Http\Message\ResponseInterface as HttpResponse;
 class Response implements Contracts\ResponseInterface {
 
     protected $response;
+    protected $code;
 
-    public function __construct(HttpResponse $response)
+    public function __construct($code, $response)
     {
-        $this->response = $response;
+        $this->code = $code;
+        $this->response = json_decode($response, true);
     }
 
     public function success()
     {
-        return $this->response->getStatusCode() === 200;
+        return $this->code === 200;
     }
 
-    public function result()
+    public function result($field = null)
     {
-        $body = $this->response->getBody();
-
-        if(is_array($body) && isset($body['result']))
+        if(is_array($this->response) && isset($this->response['result']))
         {
-            return $body['result'];
+            return $field ? $this->response['result'][$field] : $this->response['result'];
         }
+    }
+
+    public function code()
+    {
+        return $this->code;
     }
 }
