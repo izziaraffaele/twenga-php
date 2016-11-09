@@ -13,7 +13,8 @@
     ],
     "require": {
         "php": ">=5.5",
-        "ext-curl" : "*"
+        "ext-curl" : "*",
+        "guzzlehttp/guzzle": "^6.2"
     },
     "require-dev": {
         "mockery/mockery": "^0.9.5",
