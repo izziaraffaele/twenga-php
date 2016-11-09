@@ -9,12 +9,6 @@ use Mockery as m;
 class ClientTest extends \PHPUnit_Framework_TestCase{
     const VALID_TOKEN = 'authToken';
 
-    public function testGetHttpClient()
-    {
-        $client = new Client();
-        $this->assertInstanceOf('GuzzleHttp\ClientInterface', $client->getHttpClient());
-    }
-
     public function testGetAuthToken()
     {
         $client = new Client([
@@ -25,6 +19,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase{
         $client->setHttpClient($this->getMockedHttpClient());
         $token = $client->getAuthToken();
 
+        $this->assertNull($token);
+
+        $client->refreshAuthToken();
+        $token = $client->getAuthToken();
         $this->assertSame(self::VALID_TOKEN, $token);
 
         return $client;
@@ -67,12 +65,10 @@ class ClientTest extends \PHPUnit_Framework_TestCase{
         $httpResponse = m::mock('GuzzleHttp\Psr7\Response');
         $httpResponse
             ->shouldReceive('getStatusCode')
-            ->times(1)
             ->andReturn(200);
 
         $httpResponse
             ->shouldReceive('getBody')
-            ->times(1)
             ->andReturn([
                 'result' => [
                     'token' => self::VALID_TOKEN
@@ -82,7 +78,6 @@ class ClientTest extends \PHPUnit_Framework_TestCase{
         $httpClient = m::mock('GuzzleHttp\Client');
         $httpClient
             ->shouldReceive('request')
-            ->times(1)
             ->with('GET', Client::AUTH_ENDPOINT, [
               'auth' => ['username', 'password']
             ])

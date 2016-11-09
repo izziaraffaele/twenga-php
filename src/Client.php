@@ -1,6 +1,10 @@
 <?php
 namespace Twenga;
 
+use GuzzleHttp\Client as HttpClient;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Handler\CurlHandler;
+
 /**
  * Client interface for Twenga Report API.
  *
@@ -59,90 +63,91 @@ class Client
         $this->password = $password;
         return $this;
     }
+
+    public function setHttpClient(HttpClient $client)
+    {
+        $this->client = $client;
+    }
     
     public function getAuthToken()
     {
-        if(!$this->token)
-        {
-            if($this->username && $this->password)
-            {
-                $this->token = $this->authorize();
-            }
-        }
-        
         return $this->token;
+    }
+
+    public function refreshAuthToken()
+    {
+        $response = $this->request('GET', self::AUTH_ENDPOINT, [
+            'auth' => [$this->username, $this->password]
+        ]);
+
+        if($response->getStatusCode() === 200)
+        {
+            $data = $this->decodeBody($response->getBody());
+            $this->token = $data['token'];
+
+            return true;
+        }
     }
 
     public function send($method, $path, array $query = [])
     {
-        $token = $this->getAuthToken();
-        
-        if(!$token)
+        if(!$this->authorize())
         {
             throw new Exceptions\TwengaException('Invalid Api credentials');
         }
 
-        return $this->request($method, [
-            CURLOPT_URL => $this->getPath($path, $query).'&token='.$token,
-            CURLOPT_HTTPHEADER => [
-                'cache-control: no-cache',
-                'content-type: application/json'
-            ]
+        $httpResponse = $this->request($method, $path, [
+            'query' => array_merge($query, ['token' => $this->token]),
         ]);
+
+        return new Response($httpResponse->getStatusCode(), json_decode($httpResponse->getBody(), true));
+    }
+
+    protected function request($method, $path, array $options)
+    {
+        return $this->client()->request($method, $path, $options);
     }
 
     protected function authorize()
     {
-        if($this->username && $this->password)
-        { 
-            $response = $this->request('GET', [
-                CURLOPT_URL => $this->getPath(self::AUTH_ENDPOINT),
-                CURLOPT_HTTPHEADER => [
-                    'authorization: Basic '.base64_encode($this->username.':'.$this->password),
-                    'cache-control: no-cache',
-                    'content-type: application/json'
-                ],
-            ]);
-
-            if($response->success())
-            {
-                return $response->result('token');
-            }
+        if($this->token)
+        {
+            return true;
         }
-        
+
+        if($this->password && $this->username)
+        {
+            return $this->refreshAuthToken();
+        }
+
         return false;
     }
 
-    protected function getPath($path, array $query = null)
+
+    protected function client()
     {
-        $query = ($query) ? http_build_query($query) : '';
-        return $this->host.$path.'?'.$query;
-    }
-
-    protected function request($method, array $options, $execution = 1)
-    {
-        $curl = curl_init();
-
-        $defaultOptions = [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => $method
-        ];
-
-        curl_setopt_array($curl, $defaultOptions + $options);
-
-        $response = curl_exec($curl);
-        $code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
-        if(in_array($code,[502, 504]) && $execution <= 3)
+        if(!$this->client)
         {
-            $execution += 1;
-            return $this->request($method, $options, $execution);
+            $this->client = $this->createDefaultClient();
         }
 
-        return new Response($code, $response);
+        return $this->client;
+    }
+
+    protected function createDefaultClient()
+    {
+        return new HttpClient([
+            'handler' => HandlerStack::create(new CurlHandler()),
+            'query' => [
+                'format' => 'json'
+            ],
+            'curl' => [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => "",
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            ]
+        ]);
     }
 }
