@@ -39,6 +39,8 @@ class Client
      */
     private $token;
 
+    private $client;
+
     /**
      * If you provide any parameters if will instantiate a HTTP client on construction.
      * Otherwise it will create one when required.
@@ -83,7 +85,7 @@ class Client
         if($response->getStatusCode() === 200)
         {
             $data = $this->decodeBody($response->getBody());
-            $this->token = $data['token'];
+            $this->token = urldecode($data['token']);
 
             return true;
         }
@@ -100,11 +102,17 @@ class Client
             'query' => array_merge($query, ['token' => $this->token]),
         ]);
 
-        return new Response($httpResponse->getStatusCode(), json_decode($httpResponse->getBody(), true));
+        return new Response($httpResponse->getStatusCode(), $httpResponse->getBody());
     }
 
     protected function request($method, $path, array $options)
     {
+        if(!isset($options['query']))
+        {
+            $options['query'] = [];
+        }
+
+        $options['query']['format'] = 'json';
         return $this->client()->request($method, $path, $options);
     }
 
@@ -123,6 +131,11 @@ class Client
         return false;
     }
 
+    protected function decodeBody($body)
+    {
+        $body = json_decode((string) $body, true);
+        return $body['result'];
+    }
 
     protected function client()
     {
@@ -137,10 +150,8 @@ class Client
     protected function createDefaultClient()
     {
         return new HttpClient([
+            'base_uri' => $this->host,
             'handler' => HandlerStack::create(new CurlHandler()),
-            'query' => [
-                'format' => 'json'
-            ],
             'curl' => [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_ENCODING => "",
