@@ -46,11 +46,11 @@ class Api {
 
             return $response;
         }
-        catch(\GuzzleHttp\Exception\RequestException $e)
+        catch(\GuzzleHttp\Exception\ServerException $e)
         {
             $this->execution += 1;
 
-            if($this->shouldRetry($e->getStatusCode()))
+            if($this->shouldRetry($e->getResponse()->getStatusCode()))
             {
                 return $this->report($query);
             }
